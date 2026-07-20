@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>🚗 CPMA – Controle do Motorista</title>
+<meta name="theme-color" content="#F5A623">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CPMA">
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- React + ReactDOM (UMD) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<!-- Babel standalone (compila JSX no navegador) -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<style>
+  body{background:#0B0B12;font-family:Inter,system-ui,sans-serif}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:#0B0B12}
+  ::-webkit-scrollbar-thumb{background:#252538;border-radius:3px}
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+  .font-mono-num{font-family:'JetBrains Mono',ui-monospace,monospace}
+</style>
+</head>
+<body class="bg-[#0B0B12] text-[#EEEEF8] min-h-screen">
+<div id="root"><div class="min-h-screen flex items-center justify-center text-[#6B6B88] font-mono">Carregando…</div></div>
+
+<!-- Fallback caso alguma CDN falhe -->
+<script>
+  window.addEventListener('error', function(e){
+    if (!window.__CPMA_BOOTED__) {
+      var root = document.getElementById('root');
+      if (root) root.innerHTML =
+        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">'
+        + '<div style="max-width:420px;background:#13131E;border:1px solid #E74C3C55;border-radius:16px;padding:28px;color:#EEEEF8;font-family:monospace;font-size:13px">'
+        + '<strong style="color:#E74C3C">Erro ao carregar o app</strong><br><br>'
+        + (e.message || 'Uma biblioteca externa não carregou (conexão instável?).') + '<br><br>'
+        + '<span style="color:#6B6B88">Recarregue a página. Se persistir, verifique sua conexão com a internet.</span>'
+        + '</div></div>';
+    }
+  });
+</script>
+
+<script type="text/babel" data-presets="react">
+const {useState, useEffect, useRef, useMemo, Fragment} = React;
+
+// ── Firebase config ────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAbQ6vTsKTCrozAXoQU95RIt4tSY64hJCI",
+  authDomain: "cpma-4b26f.firebaseapp.com",
+  projectId: "cpma-4b26f",
+  storageBucket: "cpma-4b26f.firebasestorage.app",
+  messagingSenderId: "792687734113",
+  appId: "1:792687734113:web:c8d4fcd0d8c638d65ca920"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ── Constants ──────────────────────────────────────────────
+const SK='cpma-v6', AK='cpma-arch-v6', WKKEY='cpma-wk-v6';
+const DIAS  = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+const DKEYS = ['seg','ter','qua','qui','sex','sab','dom'];
+const P = {
+  amber:'#F5A623', green:'#2ECC71', red:'#E74C3C', blue:'#3498DB',
+  purple:'#8B5CF6', teal:'#14B8A6', orange:'#F97316',
+  muted:'#6B6B88', dim:'#32324A', text:'#EEEEF8',
+  card:'#13131E', card2:'#1C1C2A', border:'#252538'
+};
+
+// ── Data helpers ───────────────────────────────────────────
+const mkDia = dia => ({dia, valor:0});
+const mkSem = n => ({num:n, dias:DIAS.map(mkDia)});
+const mkCfg = () => ({
+  nome:'',cidade:'',plat:'',mes:'',
+  meta:4000,dias:22,comb:25,parcela:0,alim:20,
+  prev:0,cor:0,pneus:0,multas:0,outros:0,
+  metas:{seg:300,ter:300,qua:200,qui:400,sex:400,sab:300,dom:0}
+});
+const mkData = () => ({cfg:mkCfg(), sems:[1,2,3,4].map(mkSem)});
+
+function migrate(raw){
+  if(!raw) return mkData();
+  const d = Object.assign(mkData(), raw);
+  if(d.sems) d.sems = d.sems.map((s,si)=>({num:si+1,
+    dias: DIAS.map((dia,di)=>{
+      const o = s.dias && s.dias[di];
+      if(!o) return {dia, valor:0};
+      const name = o.dia || o.d || dia;
+      if('manha' in o || 'almoco' in o || 'noite' in o)
+        return {dia:name, valor:(o.manha||0)+(o.almoco||0)+(o.noite||0)};
+      return {dia:name, valor:o.valor||0};
+    })}));
+  return d;
+}
+
+function calc(data){
+  const c = data.cfg;
+  const pC = (c.comb||0)/100, alimT = (c.alim||0)*(c.dias||22);
+  const despF = (c.parcela||0)+alimT+(c.prev||0)+(c.cor||0)+(c.pneus||0)+(c.multas||0)+(c.outros||0);
+  const fatN = pC<1 ? ((c.meta||0)+despF)/(1-pC) : 0;
+  let fatR=0; data.sems.forEach(s=>s.dias.forEach(d=>{fatR+=d.valor||0}));
+  const combR=fatR*pC, despR=combR+despF, lucro=fatR-despR;
+  const manutT=(c.prev||0)+(c.cor||0)+(c.pneus||0)+(c.multas||0)+(c.outros||0);
+  return {pC,alimT,despF,fatN,fatR,combR,despR,lucro,manutT,
+    pMeta: c.meta ? lucro/c.meta : 0, falta: Math.max(0,(c.meta||0)-lucro),
+    metaDia: fatN/(c.dias||22)};
+}
+const semT = s => s.dias.reduce((t,d)=>t+(d.valor||0),0);
+const diaMeta = (cfg,dia) => { const i=DIAS.indexOf(dia); return i>=0 ? (cfg.metas && cfg.metas[DKEYS[i]] || 0) : 0; };
+const brl = v => (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const toN = v => parseFloat(v)||0;
+
+// ── Local storage (safe) ────────────────────────────────────
+const store = (()=>{
+  let mem={};
+  const safe=fn=>{try{return fn();}catch(e){return null;}};
+  return {
+    get:k=>safe(()=>localStorage.getItem(k))||mem[k]||null,
+    set:(k,v)=>{safe(()=>localStorage.setItem(k,v));mem[k]=v;},
+    del:k=>{safe(()=>localStorage.removeItem(k));delete mem[k];}
+  };
+})();
+
+// ════════════════════════════════════════════════════════════
+// SVG CHARTS (sem dependência externa)
+// ════════════════════════════════════════════════════════════
+function BarChartSVG({items,color}){
+  const max = Math.max(...items.map(i=>i.val),1);
+  const H=140, n=items.length, W=100/n;
+  return (
+    <svg width="100%" height={H+24} style={{overflow:'visible',display:'block'}}>
+      {items.map((item,i)=>{
+        const bh=Math.max(2,(item.val/max)*H), bx=i*W+W*.15, by=H-bh, bw=W*.7;
+        return (
+          <g key={i}>
+            <rect x={bx+"%"} y={by} width={bw+"%"} height={bh} fill={color} opacity=".8" rx="4"/>
+            {item.val>0 && <text x={(i*W+W/2)+"%"} y={by-5} textAnchor="middle" fill={color} fontSize="9" fontFamily="monospace" fontWeight="bold">R${(item.val/1000).toFixed(1)}k</text>}
+            <text x={(i*W+W/2)+"%"} y={H+16} textAnchor="middle" fill={P.muted} fontSize="12">{item.name}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function DonutSVG({items}){
+  const total = items.reduce((s,i)=>s+i.val,0);
+  if(!total) return <p className="text-center py-10 text-sm" style={{color:P.dim}}>Configure despesas para visualizar</p>;
+  const cx=100,cy=75,R=55,r=28; let a=-Math.PI/2;
+  const paths = items.map((item,idx)=>{
+    const da=(item.val/total)*Math.PI*2;
+    const x1=cx+R*Math.cos(a), y1=cy+R*Math.sin(a);
+    const x2=cx+R*Math.cos(a+da), y2=cy+R*Math.sin(a+da);
+    const x3=cx+r*Math.cos(a+da), y3=cy+r*Math.sin(a+da);
+    const x4=cx+r*Math.cos(a), y4=cy+r*Math.sin(a);
+    const lg=da>Math.PI?1:0;
+    const d=`M${x1},${y1} A${R},${R} 0 ${lg},1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 ${lg},0 ${x4},${y4}Z`;
+    a+=da;
+    return <path key={idx} d={d} fill={item.color} opacity=".85"/>;
+  });
+  return (
+    <div>
+      <svg width="200" height="150" style={{display:'block',margin:'0 auto',overflow:'visible'}}>{paths}</svg>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 justify-center mt-2">
+        {items.map((i,idx)=><div key={idx} className="text-[11px]" style={{color:i.color}}>● {i.name}: {brl(i.val)}</div>)}
+      </div>
+    </div>
+  );
+}
+
+function DailySVG({items}){
+  const max = Math.max(...items.map(i=>Math.max(i.fat,i.meta)),1);
+  const H=120, TW=800, n=items.length, sp=TW/n, bw=sp*.55, bx0=sp*.225;
+  const lpts = items.map((item,i)=>`${i*sp+sp/2},${H-(item.meta/max)*H}`).join(' ');
+  return (
+    <svg viewBox={`0 0 ${TW} ${H+18}`} width="100%" height="150" style={{display:'block'}}>
+      {items.map((item,i)=>{
+        const bh=Math.max(0,(item.fat/max)*H);
+        const col = item.fat===0?P.dim:item.ok?P.green:P.red;
+        return <rect key={i} x={i*sp+bx0} y={H-bh} width={bw} height={bh} fill={col} opacity=".75" rx="3"/>;
+      })}
+      <polyline points={lpts} fill="none" stroke={P.amber} strokeWidth="2" opacity=".65"/>
+      {items.map((item,i)=> i%7===3 ? <text key={i} x={i*sp+sp/2} y={H+15} textAnchor="middle" fill={P.muted} fontSize="9">{item.name}</text> : null)}
+    </svg>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// SHARED UI
+// ════════════════════════════════════════════════════════════
+function KPI({label,value,sub,color}){
+  color = color || P.amber;
+  return (
+    <div className="rounded-xl p-4" style={{background:P.card,border:`1px solid ${P.border}`,borderLeft:`3px solid ${color}`}}>
+      <p className="text-[10px] tracking-widest uppercase font-bold mb-1.5" style={{color:P.muted}}>{label}</p>
+      <p className="font-mono-num text-xl font-bold leading-none" style={{color}}>{value}</p>
+      {sub && <p className="text-[11px] mt-1" style={{color:P.dim}}>{sub}</p>}
+    </div>
+  );
+}
+
+function Card({title,children,accent,className=""}){
+  return (
+    <div className={"rounded-2xl p-5 mb-4 "+className} style={{background:P.card,border:`1px solid ${accent||P.border}`}}>
+      {title && <p className="text-[10px] font-extrabold tracking-[3px] uppercase mb-4" style={{color:P.amber}}>{title}</p>}
+      {children}
+    </div>
+  );
+}
+
+function Divider({label}){
+  return (
+    <div className="flex items-center gap-3 my-4">
+      <span className="text-[10px] font-bold tracking-widest uppercase whitespace-nowrap" style={{color:P.muted}}>{label}</span>
+      <hr className="flex-1" style={{borderColor:P.border}}/>
+    </div>
+  );
+}
+
+function Inp({label,hint,value,onChange,type="text",placeholder="",blue=false}){
+  const [focused,setFocused] = useState(false);
+  const bc = focused ? P.amber : blue ? P.blue+'99' : P.border;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {label && <label className="text-[11px] tracking-wide" style={{color:P.muted}}>{label}</label>}
+      <input type={type} value={value} placeholder={placeholder} onChange={onChange}
+        onFocus={()=>setFocused(true)} onBlur={()=>setFocused(false)}
+        className="rounded-lg px-3 py-2 text-[13px] font-mono-num outline-none w-full transition-colors"
+        style={{background:P.card2, border:`1px solid ${bc}`, color:P.text}} />
+      {hint && <span className="text-[11px]" style={{color:P.dim}}>{hint}</span>}
+    </div>
+  );
+}
+
+function Btn({children,onClick,v="primary",sm=false}){
+  const variants = {
+    primary:{background:P.amber,color:'#000'},
+    success:{background:P.green,color:'#fff'},
+    danger:{background:P.red,color:'#fff'},
+    ghost:{background:'transparent',color:P.muted,border:`1px solid ${P.border}`},
+  };
+  return (
+    <button onClick={onClick} style={variants[v]}
+      className={"rounded-lg font-extrabold tracking-wide cursor-pointer inline-flex items-center gap-1.5 transition-opacity hover:opacity-80 "+(sm?"px-3 py-1.5 text-[11px]":"px-4 py-2.5 text-[13px]")}>
+      {children}
+    </button>
+  );
+}
+
+function Badge({ok,zero}){
+  if(zero) return <span className="text-xs" style={{color:P.dim}}>—</span>;
+  return (
+    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold"
+      style={{background:ok?'rgba(46,204,113,.15)':'rgba(231,76,60,.15)', color:ok?P.green:P.red}}>
+      {ok ? '✅ Sim' : '❌ Não'}
+    </span>
+  );
+}
+
+function Toast({msg}){
+  if(!msg) return null;
+  return (
+    <div className="fixed bottom-6 right-6 z-[100] rounded-xl px-5 py-3 text-[13px] font-bold pointer-events-none"
+      style={{background:P.card2, border:`1px solid ${P.green}`, color:P.green, boxShadow:'0 8px 32px rgba(0,0,0,.6)'}}>
+      {msg}
+    </div>
+  );
+}
+
+function Modal({open,onClose,title,children}){
+  if(!open) return null;
+  return (
+    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center p-6" style={{background:'rgba(0,0,0,.8)'}}>
+      <div onClick={e=>e.stopPropagation()} className="rounded-2xl p-7 w-full max-w-[440px]"
+        style={{background:P.card, border:`1px solid ${P.border}`, boxShadow:'0 24px 80px rgba(0,0,0,.6)'}}>
+        <p className="font-extrabold text-lg mb-4" style={{color:P.amber}}>{title}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// LOGIN SCREEN
+// ════════════════════════════════════════════════════════════
+function GoogleIcon(){
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 16 3 9 7.6 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 45c5.5 0 10.5-2.1 14.2-5.6l-6.6-5.4c-2 1.5-4.6 2.5-7.6 2.5-5.2 0-9.6-3.3-11.3-8l-6.5 5C9 40.4 16 45 24 45z"/>
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.4C41.5 35.5 45 30.2 45 24c0-1.4-.1-2.7-.4-3.5z"/>
+    </svg>
+  );
+}
+
+function LoginScreen({onLogin,error}){
+  return (
+    <div className="fixed inset-0 flex items-center justify-center p-6" style={{background:'#0B0B12'}}>
+      <div className="rounded-2xl p-10 max-w-[380px] w-full text-center" style={{background:P.card, border:`1px solid ${P.border}`, boxShadow:'0 24px 80px rgba(0,0,0,.6)'}}>
+        <div className="font-mono-num font-black text-3xl tracking-[4px] mb-2" style={{color:P.amber}}>🚗 CPMA</div>
+        <p className="text-[13px] mb-8 leading-relaxed" style={{color:P.muted}}>
+          Controle financeiro do motorista de app.<br/>Faça login para acessar seus dados de qualquer dispositivo.
+        </p>
+        <button onClick={onLogin} className="bg-white text-[#1f1f1f] rounded-lg px-6 py-3 font-bold text-sm cursor-pointer w-full flex items-center justify-center gap-2.5 hover:opacity-85 transition-opacity">
+          <GoogleIcon/> Entrar com Google
+        </button>
+        {error && <p className="text-xs mt-4" style={{color:P.red}}>{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════
+function Dashboard({data}){
+  const r = useMemo(()=>calc(data),[data]);
+  const c = data.cfg, pct = Math.round(r.pMeta*100);
+  const bst = pct>=100 ? {bg:'rgba(46,204,113,.07)',br:P.green,col:P.green}
+    : pct>=70 ? {bg:'rgba(245,166,35,.07)',br:P.amber,col:P.amber}
+    : {bg:'rgba(231,76,60,.07)',br:P.red,col:P.red};
+  const msg = pct>=100
+    ? `🎉 PARABÉNS${c.nome?' '+c.nome:''}! META ATINGIDA — Lucro: ${brl(r.lucro)}`
+    : `⚡ ${c.nome||'Motorista'} — ${pct}% da meta  |  Falta ${brl(r.falta)} para o objetivo`;
+
+  const semData = data.sems.map((s,i)=>({name:'S'+(i+1), val:semT(s)}));
+  const despPie = [
+    {name:'Combustível',val:r.combR,color:P.orange},
+    {name:'Alimentação',val:r.alimT,color:P.teal},
+    {name:'Parcela',val:c.parcela||0,color:P.purple},
+    {name:'Manutenção',val:r.manutT,color:P.blue},
+  ].filter(d=>d.val>0);
+  const daily=[];
+  data.sems.forEach(s=>s.dias.forEach(d=>{
+    const meta=diaMeta(c,d.dia);
+    daily.push({name:d.dia, fat:d.valor||0, meta, ok:(d.valor||0)>=meta&&(d.valor||0)>0});
+  }));
+
+  return (
+    <div>
+      <div className="rounded-xl px-5 py-3.5 text-center font-bold text-[13px] mb-5" style={{background:bst.bg,border:`1px solid ${bst.br}`,color:bst.col}}>{msg}</div>
+
+      <div className="grid gap-3 mb-3" style={{gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))'}}>
+        <KPI label="Faturamento Bruto" value={brl(r.fatR)} sub={`meta: ${brl(r.fatN)}`} color={P.amber}/>
+        <KPI label="Lucro Líquido" value={brl(r.lucro)} sub={`meta: ${brl(c.meta||0)}`} color={r.lucro>=(c.meta||0)?P.green:P.red}/>
+        <KPI label="Despesas Totais" value={brl(r.despR)} sub={`${r.fatR>0?Math.round(r.despR/r.fatR*100):0}% do faturamento`} color={P.red}/>
+        <KPI label="% da Meta" value={pct+'%'} sub={pct>=100?'Objetivo atingido!':'Em andamento...'} color={pct>=100?P.green:pct>=70?P.amber:P.red}/>
+      </div>
+
+      <div className="grid gap-3 mb-3" style={{gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))'}}>
+        <KPI label="⛽ Combustível" value={brl(r.combR)} sub={`${c.comb||0}% do faturamento`} color={P.orange}/>
+        <KPI label="🍽 Alimentação" value={brl(r.alimT)} sub={`R$${c.alim||0}/dia × ${c.dias||22}d`} color={P.teal}/>
+        <KPI label="🚗 Parcela" value={brl(c.parcela||0)} sub="fixo mensal" color={P.purple}/>
+        <KPI label="🔧 Manutenção" value={brl(r.manutT)} sub="total mensal" color={P.blue}/>
+      </div>
+
+      <div className="grid gap-4 mb-4" style={{gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))'}}>
+        <Card title="📈 Faturamento por Semana"><BarChartSVG items={semData} color={P.amber}/></Card>
+        <Card title="💸 Composição das Despesas"><DonutSVG items={despPie}/></Card>
+      </div>
+
+      <Card title="📅 Faturamento Diário vs Meta  (🟢 meta atingida  🔴 abaixo)">
+        <DailySVG items={daily}/>
+      </Card>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════════
+function Config({data,setData,toast}){
+  const [cfg,setCfg] = useState(()=>JSON.parse(JSON.stringify(data.cfg)));
+  useEffect(()=>{ setCfg(JSON.parse(JSON.stringify(data.cfg))); },[data.cfg]);
+  const up = (k,v)=>setCfg(p=>({...p,[k]:v}));
+  const upM = (k,v)=>setCfg(p=>({...p,metas:{...p.metas,[k]:toN(v)}}));
+
+  const pC=toN(cfg.comb)/100, alimT=toN(cfg.alim)*(toN(cfg.dias)||22);
+  const despF=toN(cfg.parcela)+alimT+toN(cfg.prev)+toN(cfg.cor)+toN(cfg.pneus)+toN(cfg.multas)+toN(cfg.outros);
+  const fatN = pC<1 ? ((toN(cfg.meta)||0)+despF)/(1-pC) : 0;
+  const save = ()=>{ setData(p=>({...p,cfg:{...cfg}})); toast('✅ Configurações salvas!'); };
+
+  const g2 = "grid gap-3.5"; const g2s = {gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))'};
+  const g3s = {gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))'};
+  const g4s = {gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))'};
+
+  return (
+    <div>
+      <Card title="👤 Identificação">
+        <div className={g2} style={g2s}>
+          <Inp label="Nome do Motorista" value={cfg.nome||''} placeholder="Seu nome" onChange={e=>up('nome',e.target.value)}/>
+          <Inp label="Cidade / Estado" value={cfg.cidade||''} placeholder="São Paulo – SP" onChange={e=>up('cidade',e.target.value)}/>
+          <Inp label="Plataforma" value={cfg.plat||''} placeholder="Uber / 99 / inDrive" onChange={e=>up('plat',e.target.value)}/>
+          <Inp label="Mês de Referência" value={cfg.mes||''} placeholder="Maio 2025" onChange={e=>up('mes',e.target.value)}/>
+        </div>
+      </Card>
+
+      <Card title="🎯 Meta de Ganho">
+        <div className={g2} style={g2s}>
+          <Inp label="Meta de Lucro Líquido (R$)" type="number" value={cfg.meta||''} placeholder="4000" blue
+            hint="Quanto quer levar pra casa no mês" onChange={e=>up('meta',toN(e.target.value))}/>
+          <Inp label="Dias Úteis no Mês" type="number" value={cfg.dias||''} placeholder="22" blue
+            hint="Dias que vai trabalhar" onChange={e=>up('dias',toN(e.target.value))}/>
+        </div>
+      </Card>
+
+      <Card title="💸 Despesas e Custos">
+        <Divider label="Despesas Fixas"/>
+        <div className={g3s?"":""}>
+          <div className={g2} style={g3s}>
+            <Inp label="Combustível (% do faturamento)" type="number" value={cfg.comb||''} placeholder="25" blue
+              hint="Ex: 25 = 25% do que faturar" onChange={e=>up('comb',toN(e.target.value))}/>
+            <Inp label="Parcela do Carro (R$/mês)" type="number" value={cfg.parcela||''} placeholder="0" blue
+              onChange={e=>up('parcela',toN(e.target.value))}/>
+            <Inp label="Alimentação por Dia (R$)" type="number" value={cfg.alim||''} placeholder="20" blue
+              onChange={e=>up('alim',toN(e.target.value))}/>
+          </div>
+        </div>
+        <Divider label="Manutenção e Imprevistos"/>
+        <div className={g2} style={g3s}>
+          {[['prev','Prev. / Revisão'],['cor','Corretiva'],['pneus','Pneus / Óleo'],['multas','Multas / Taxas'],['outros','Outros']].map(([k,l])=>(
+            <Inp key={k} label={l+' (R$/mês)'} type="number" value={cfg[k]||''} placeholder="0" blue onChange={e=>up(k,toN(e.target.value))}/>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="📅 Meta por Dia da Semana (R$)">
+        <div className={g2} style={g4s}>
+          {[['seg','Segunda'],['ter','Terça'],['qua','Quarta'],['qui','Quinta'],['sex','Sexta'],['sab','Sábado'],['dom','Domingo']].map(([k,l])=>(
+            <Inp key={k} label={l} type="number" value={(cfg.metas&&cfg.metas[k])??''} placeholder="0" blue onChange={e=>upM(k,e.target.value)}/>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="📊 Resumo Calculado" accent={P.green+'44'}>
+        <div className="grid gap-2.5" style={{gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))'}}>
+          {[
+            ['Despesas Fixas', brl(despF), P.red],
+            ['Fat. Necessário', brl(fatN), P.amber],
+            ['Meta Diária', brl(fatN/Math.max(toN(cfg.dias)||22,1)), P.blue],
+            ['Alimentação Total', brl(alimT), P.teal],
+            ['% Desp./Fat.', fatN>0?Math.round(despF/fatN*100)+'%':'0%', P.orange],
+            ['Meta Semanal', brl(fatN/Math.max(toN(cfg.dias)||22,1)*6), P.purple],
+          ].map(([l,v,col])=>(
+            <div key={l} className="rounded-lg px-3.5 py-2.5" style={{background:P.card2,border:`1px solid ${P.border}`}}>
+              <p className="text-[10px] tracking-wide mb-1" style={{color:P.muted}}>{l}</p>
+              <p className="font-mono-num text-[15px] font-bold" style={{color:col}}>{v}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Btn onClick={save}>💾 Salvar Configurações</Btn>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// REGISTRO
+// ════════════════════════════════════════════════════════════
+function Registro({data,setData,toast}){
+  const [wk,setWkState] = useState(()=>parseInt(store.get(WKKEY)||'0')||0);
+  const setWk = i=>{ setWkState(i); store.set(WKKEY,String(i)); };
+  const sem = data.sems[wk], tot = semT(sem), c = data.cfg;
+
+  const upDia = (di,val)=>setData(p=>({
+    ...p,
+    sems: p.sems.map((s,si)=> si!==wk ? s : {
+      ...s, dias: s.dias.map((d,i)=> i!==di ? d : {...d, valor:toN(val)})
+    })
+  }));
+
+  const clearWk = ()=>{
+    if(!confirm(`Limpar todos os dados da Semana ${wk+1}?`)) return;
+    setData(p=>{ const sems=[...p.sems]; sems[wk]=mkSem(wk+1); return {...p,sems}; });
+    toast(`🗑 Semana ${wk+1} limpa`);
+  };
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {[0,1,2,3].map(i=>(
+          <button key={i} onClick={()=>setWk(i)}
+            className="rounded-lg px-5 py-2 text-[13px] font-extrabold tracking-wide cursor-pointer transition-all"
+            style={{background:wk===i?'rgba(245,166,35,.1)':'transparent', border:`1px solid ${wk===i?P.amber:P.border}`, color:wk===i?P.amber:P.muted}}>
+            Semana {i+1}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-xl px-5 py-3 mb-4 flex justify-between items-center" style={{background:P.card,border:`1px solid ${P.border}`,borderLeft:`3px solid ${P.amber}`}}>
+        <span className="text-[11px] font-bold tracking-[3px] uppercase" style={{color:P.muted}}>Semana {wk+1}</span>
+        <span className="font-mono-num text-xl font-bold" style={{color:P.amber}}>{brl(tot)}</span>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse" style={{minWidth:380}}>
+            <thead>
+              <tr style={{background:P.card2}}>
+                {['Dia','Faturamento do Dia (R$)','Meta','Status'].map(h=>(
+                  <th key={h} className="text-[10px] tracking-widest text-left px-4 py-2.5 font-extrabold uppercase whitespace-nowrap" style={{color:P.amber, borderBottom:`1px solid ${P.border}`}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sem.dias.map((d,i)=>{
+                const meta=diaMeta(c,d.dia), ok=(d.valor||0)>=meta&&(d.valor||0)>0;
+                const stripe = i%2===0 ? 'transparent' : P.card2+'88';
+                return (
+                  <tr key={i} style={{background:stripe}}>
+                    <td className="px-4 py-2 font-bold whitespace-nowrap text-[14px]" style={{color:P.text, borderBottom:`1px solid ${P.border}22`}}>{d.dia}</td>
+                    <td className="px-4 py-1.5" style={{borderBottom:`1px solid ${P.border}22`}}>
+                      <input type="number" value={d.valor||''} placeholder="0" onChange={e=>upDia(i,e.target.value)}
+                        className="rounded-md px-2.5 py-1.5 text-[14px] font-mono-num outline-none text-right"
+                        style={{background:P.card2, border:`1px solid ${P.border}`, color:P.text, width:110}}
+                        onFocus={e=>e.target.style.borderColor=P.amber} onBlur={e=>e.target.style.borderColor=P.border}/>
+                    </td>
+                    <td className="px-4 py-2 font-mono-num text-[13px] whitespace-nowrap" style={{color:P.muted, borderBottom:`1px solid ${P.border}22`}}>{brl(meta)}</td>
+                    <td className="px-4 py-2" style={{borderBottom:`1px solid ${P.border}22`}}><Badge ok={ok} zero={(d.valor||0)===0}/></td>
+                  </tr>
+                );
+              })}
+              <tr style={{background:`${P.amber}0D`, borderTop:`1px solid ${P.amber}33`}}>
+                <td className="px-4 py-2.5 text-[10px] font-extrabold tracking-widest uppercase" style={{color:P.amber}}>Subtotal Semana {wk+1}</td>
+                <td className="px-4 py-2.5 font-mono-num font-extrabold text-[14px]" style={{color:P.amber}}>{brl(tot)}</td>
+                <td colSpan="2"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <div className="flex gap-2.5 flex-wrap">
+        <Btn onClick={()=>toast(`✅ Semana ${wk+1} salva!`)}>💾 Salvar</Btn>
+        <Btn v="ghost" onClick={clearWk}>🗑 Limpar Semana</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// SIMULADOR
+// ════════════════════════════════════════════════════════════
+function Simulador({data}){
+  const [livreVal,setLivreVal] = useState('');
+  const r = useMemo(()=>calc(data),[data]);
+  const c = data.cfg;
+  const simFat = fat=>{ const desp=fat*r.pC+r.despF, lucro=fat-desp; return {fat,desp,lucro,ok:lucro>=(c.meta||0)}; };
+  const cenarios = [
+    ['🔴 Pessimista',.6],['🟡 Abaixo da Meta',.8],['🟢 Meta Exata',1],['🔵 Acima da Meta',1.2],['⭐ Ótimo',1.5]
+  ];
+  const livreN = toN(livreVal);
+  const livreR = livreN>0 ? simFat(livreN) : null;
+  const kg = "grid gap-3"; const kgs = {gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))'};
+
+  return (
+    <div>
+      <Card title="📌 Parâmetros Ativos">
+        <div className={kg} style={kgs}>
+          <KPI label="Combustível" value={(c.comb||0)+'%'} color={P.orange}/>
+          <KPI label="Despesas Fixas" value={brl(r.despF)} color={P.red}/>
+          <KPI label="Meta de Lucro" value={brl(c.meta||0)} color={P.green}/>
+          <KPI label="Fat. Necessário" value={brl(r.fatN)} color={P.amber}/>
+        </div>
+      </Card>
+
+      <Card title="📊 Cenários Automáticos">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse" style={{minWidth:500}}>
+            <thead><tr style={{background:P.card2}}>
+              {['Cenário','Faturamento','Despesas','Lucro Líquido','Meta?'].map(h=>(
+                <th key={h} className="text-[10px] tracking-widest text-left px-3.5 py-2.5 font-extrabold uppercase whitespace-nowrap" style={{color:P.amber,borderBottom:`1px solid ${P.border}`}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {cenarios.map(([label,pct],i)=>{
+                const res = simFat(r.fatN*pct);
+                return (
+                  <tr key={i} style={{background:i%2===0?'transparent':P.card2+'88'}}>
+                    <td className="px-3.5 py-2.5 font-bold" style={{color:P.text,borderBottom:`1px solid ${P.border}22`}}>{label}</td>
+                    <td className="px-3.5 py-2.5 font-mono-num font-semibold" style={{color:P.amber,borderBottom:`1px solid ${P.border}22`}}>{brl(res.fat)}</td>
+                    <td className="px-3.5 py-2.5 font-mono-num" style={{color:P.red,borderBottom:`1px solid ${P.border}22`}}>{brl(res.desp)}</td>
+                    <td className="px-3.5 py-2.5 font-mono-num font-bold" style={{color:res.lucro>=0?P.green:P.red,borderBottom:`1px solid ${P.border}22`}}>{brl(res.lucro)}</td>
+                    <td className="px-3.5 py-2.5" style={{borderBottom:`1px solid ${P.border}22`}}><Badge ok={res.ok} zero={false}/></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card title="✏️ Simulação Livre">
+        <p className="text-[13px] mb-4" style={{color:P.muted}}>Digite qualquer faturamento e veja o resultado instantaneamente.</p>
+        <div className="max-w-[260px] mb-5">
+          <Inp label="Faturamento Bruto (R$)" type="number" value={livreVal} placeholder="Ex: 3.500" blue onChange={e=>setLivreVal(e.target.value)}/>
+        </div>
+        {livreR ? (
+          <div className={kg} style={kgs}>
+            <KPI label="Faturamento" value={brl(livreR.fat)} color={P.amber}/>
+            <KPI label="Despesas" value={brl(livreR.desp)} color={P.red}/>
+            <KPI label="Lucro Líquido" value={brl(livreR.lucro)} color={livreR.lucro>=0?P.green:P.red}/>
+            <KPI label="Meta Atingida" value={livreR.ok?'✅ Sim':'❌ Não'} color={livreR.ok?P.green:P.red}/>
+          </div>
+        ) : <p className="text-[13px]" style={{color:P.dim}}>Preencha o campo acima para simular.</p>}
+      </Card>
+
+      <Card title="📋 Resultado Real do Mês">
+        <div className={kg} style={kgs}>
+          <KPI label="Faturamento Real" value={brl(r.fatR)} color={P.amber}/>
+          <KPI label="Despesas Reais" value={brl(r.despR)} color={P.red}/>
+          <KPI label="Lucro Real" value={brl(r.lucro)} color={r.lucro>=(c.meta||0)?P.green:P.red}/>
+          <KPI label="% da Meta" value={Math.round(r.pMeta*100)+'%'} color={r.pMeta>=1?P.green:r.pMeta>=.7?P.amber:P.red}/>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// DADOS
+// ════════════════════════════════════════════════════════════
+function Dados({data,setData,archive,setArchive,toast,fileRef,user,onLogout}){
+  const r = useMemo(()=>calc(data),[data]);
+
+  const exportar = ()=>{
+    const nome=(data.cfg.nome||'motorista').replace(/\s/g,'_');
+    const mes=(data.cfg.mes||'mes').replace(/\s/g,'_');
+    const blob=new Blob([JSON.stringify({data,archive},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`cpma_${nome}_${mes}.json`; a.click();
+    URL.revokeObjectURL(url); toast('⬇ Dados exportados!');
+  };
+
+  const limpar = ()=>{
+    if(!confirm('Apagar TODOS os dados permanentemente?')) return;
+    setData(mkData()); setArchive([]);
+    toast('🗑 Dados apagados');
+  };
+
+  const exportArq = i=>{
+    const arq=archive[i];
+    const blob=new Blob([JSON.stringify(arq,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=`cpma_arq_${arq.mes.replace(/\s/g,'_')}.json`; a.click();
+    URL.revokeObjectURL(url); toast('⬇ Mês exportado!');
+  };
+
+  const delArq = i=>{
+    if(!confirm('Remover este mês do histórico?')) return;
+    setArchive(p=>p.filter((_,j)=>j!==i)); toast('🗑 Mês removido');
+  };
+
+  const rowCls = "rounded-xl px-4.5 py-3.5 flex items-center justify-between gap-3.5 flex-wrap mb-2.5";
+  const rowStyle = {background:P.card2+'66', border:`1px solid ${P.border}`, padding:'14px 18px'};
+
+  return (
+    <div>
+      <Card title="👤 Sua Conta">
+        <div className="flex items-center justify-between flex-wrap gap-3.5" style={rowStyle}>
+          <div className="flex items-center gap-3">
+            {user && user.photoURL && <img src={user.photoURL} className="w-10 h-10 rounded-full"/>}
+            <div>
+              <p className="font-bold text-[14px]" style={{color:P.text}}>{user ? (user.displayName||'Motorista') : ''}</p>
+              <p className="text-xs mt-0.5" style={{color:P.muted}}>{user ? user.email : ''}</p>
+            </div>
+          </div>
+          <Btn v="ghost" onClick={onLogout}>🚪 Sair da Conta</Btn>
+        </div>
+      </Card>
+
+      <Card title="📊 Resumo do Mês Atual">
+        <div className="grid gap-2.5" style={{gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))'}}>
+          {[
+            ['Motorista', data.cfg.nome||'—', P.text],
+            ['Mês Atual', data.cfg.mes||'—', P.text],
+            ['Faturamento', brl(r.fatR), P.amber],
+            ['Lucro Líquido', brl(r.lucro), r.lucro>=(data.cfg.meta||0)?P.green:P.red],
+            ['% da Meta', Math.round(r.pMeta*100)+'%', P.blue],
+            ['Semanas c/ dados', data.sems.filter(s=>semT(s)>0).length+'/4', P.teal],
+          ].map(([l,v,col])=>(
+            <div key={l} className="rounded-lg px-3.5 py-2.5" style={{background:P.card2,border:`1px solid ${P.border}`}}>
+              <p className="text-[10px] tracking-wide mb-1" style={{color:P.muted}}>{l}</p>
+              <p className="font-mono-num text-[14px] font-bold" style={{color:col}}>{v}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="💾 Gerenciar Dados">
+        <div className="flex items-center justify-between flex-wrap gap-3.5 mb-2.5" style={rowStyle}>
+          <div><p className="font-bold text-[14px]" style={{color:P.text}}>Exportar Backup</p><p className="text-xs mt-0.5" style={{color:P.muted}}>Salva todos os dados em um arquivo .json</p></div>
+          <Btn v="success" onClick={exportar}>⬇ Exportar JSON</Btn>
+        </div>
+        <div className="flex items-center justify-between flex-wrap gap-3.5 mb-2.5" style={rowStyle}>
+          <div><p className="font-bold text-[14px]" style={{color:P.text}}>Importar Backup</p><p className="text-xs mt-0.5" style={{color:P.muted}}>Restaura dados de um .json exportado anteriormente</p></div>
+          <Btn onClick={()=>fileRef.current && fileRef.current.click()}>⬆ Importar JSON</Btn>
+        </div>
+        <div className="flex items-center justify-between flex-wrap gap-3.5" style={{...rowStyle, border:`1px solid ${P.red}44`}}>
+          <div><p className="font-bold text-[14px]" style={{color:P.red}}>Limpar Todos os Dados</p><p className="text-xs mt-0.5" style={{color:P.muted}}>Remove tudo permanentemente. Ação irreversível.</p></div>
+          <Btn v="danger" onClick={limpar}>🗑 Limpar Tudo</Btn>
+        </div>
+      </Card>
+
+      <Card title="🗓 Histórico de Meses Arquivados">
+        {archive.length===0 ? (
+          <p className="text-[13px]" style={{color:P.dim}}>Nenhum mês arquivado ainda. Use "🗓 Novo Mês" no cabeçalho para arquivar e reiniciar.</p>
+        ) : archive.map((arq,i)=>{
+          const pt = Math.round((arq.resumo && arq.resumo.pMeta || 0)*100);
+          const ok = (arq.resumo && arq.resumo.lucro || 0) >= (arq.resumo && arq.resumo.meta || 0);
+          return (
+            <div key={i} className="flex items-center justify-between flex-wrap gap-3.5 mb-2.5" style={rowStyle}>
+              <div>
+                <p className="font-bold text-[14px]" style={{color:P.text}}>{arq.mes}</p>
+                <p className="text-[11px] mt-0.5" style={{color:P.muted}}>{(arq.cfg && arq.cfg.nome)||'Motorista'} · {new Date(arq.at).toLocaleDateString('pt-BR')}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono-num font-bold text-[14px]" style={{color:P.amber}}>{brl(arq.resumo && arq.resumo.fatR || 0)}</p>
+                <p className="text-[11px] mt-0.5" style={{color:ok?P.green:P.red}}>Lucro: {brl(arq.resumo && arq.resumo.lucro || 0)} ({pt}%)</p>
+              </div>
+              <div className="flex gap-2">
+                <Btn sm v="ghost" onClick={()=>exportArq(i)}>⬇</Btn>
+                <Btn sm v="danger" onClick={()=>delArq(i)}>✕</Btn>
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// ROOT APP
+// ════════════════════════════════════════════════════════════
+function App(){
+  const [user,setUser] = useState(null);
+  const [authReady,setAuthReady] = useState(false);
+  const [loginError,setLoginError] = useState('');
+  const [data,setDataRaw] = useState(()=>migrate(JSON.parse(store.get(SK)||'null')));
+  const [archive,setArchRaw] = useState(()=>JSON.parse(store.get(AK)||'[]'));
+  const [page,setPage] = useState('dashboard');
+  const [msg,setMsg] = useState(null);
+  const [modal,setModal] = useState(null);
+  const [novoMes,setNovoMes] = useState('');
+  const [syncState,setSyncState] = useState('offline');
+  const fileRef = useRef(null);
+  const timerRef = useRef(null);
+  const syncTimerRef = useRef(null);
+
+  const toast = m=>{
+    if(timerRef.current) clearTimeout(timerRef.current);
+    setMsg(m); timerRef.current=setTimeout(()=>setMsg(null),3000);
+  };
+
+  // Auth listener
+  useEffect(()=>{
+    const unsub = auth.onAuthStateChanged(u=>{
+      setUser(u); setAuthReady(true);
+      if(u){
+        db.collection('motoristas').doc(u.uid).get().then(snap=>{
+          if(snap.exists){
+            const remote = snap.data();
+            if(remote.data){ const m=migrate(remote.data); setDataRaw(m); store.set(SK,JSON.stringify(m)); }
+            if(remote.archive){ setArchRaw(remote.archive); store.set(AK,JSON.stringify(remote.archive)); }
+            setSyncState('online');
+          } else {
+            setSyncState('online');
+          }
+        }).catch(()=>setSyncState('offline'));
+      }
+    });
+    return unsub;
+  },[]);
+
+  const cloudPush = (d,a)=>{
+    if(!user) return;
+    setSyncState('syncing');
+    if(syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(()=>{
+      db.collection('motoristas').doc(user.uid).set(
+        {data:d, archive:a, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},
+        {merge:true}
+      ).then(()=>setSyncState('online')).catch(()=>setSyncState('offline'));
+    },800);
+  };
+
+  const setData = updater=>{
+    setDataRaw(prev=>{
+      const next = typeof updater==='function' ? updater(prev) : updater;
+      store.set(SK, JSON.stringify(next));
+      cloudPush(next, archive);
+      return next;
+    });
+  };
+  const setArchive = updater=>{
+    setArchRaw(prev=>{
+      const next = typeof updater==='function' ? updater(prev) : updater;
+      store.set(AK, JSON.stringify(next));
+      cloudPush(data, next);
+      return next;
+    });
+  };
+
+  const loginGoogle = ()=>{
+    setLoginError('');
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider).catch(err=>setLoginError('Erro: '+(err.message||'tente novamente')));
+  };
+  const logout = ()=>{ if(confirm('Deseja sair da sua conta?')) auth.signOut(); };
+
+  const importar = e=>{
+    const file = e.target.files && e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      try{
+        const p = JSON.parse(ev.target.result);
+        if(p.data && p.data.cfg && p.data.sems){
+          setData(migrate(p.data));
+          if(p.archive) setArchive(p.archive);
+          toast('⬆ Dados importados!');
+        } else alert('Arquivo inválido. Use um backup exportado pelo CPMA.');
+      }catch{ alert('Erro ao ler o arquivo JSON.'); }
+    };
+    reader.readAsText(file); e.target.value='';
+  };
+
+  const confirmarNovoMes = ()=>{
+    if(!novoMes.trim()){ alert('Informe o nome do novo mês.'); return; }
+    const r = calc(data);
+    const arq = { mes:data.cfg.mes||'Mês sem nome', at:new Date().toISOString(),
+      cfg:{...data.cfg}, resumo:{fatR:r.fatR, lucro:r.lucro, meta:data.cfg.meta, pMeta:r.pMeta} };
+    setArchive(prev=>[arq,...prev]);
+    setData({ cfg:{...data.cfg, mes:novoMes}, sems:[1,2,3,4].map(mkSem) });
+    setModal(null); setNovoMes('');
+    toast(`✅ "${arq.mes}" arquivado! Iniciando ${novoMes}`);
+  };
+
+  const navItems = [
+    {id:'dashboard',label:'📊 Dashboard'},
+    {id:'config',label:'⚙️ Config'},
+    {id:'registro',label:'📅 Registro'},
+    {id:'simulador',label:'🔮 Simulador'},
+    {id:'dados',label:'💾 Dados'},
+  ];
+
+  if(!authReady){
+    return <div className="min-h-screen flex items-center justify-center font-mono-num" style={{color:P.muted}}>Carregando…</div>;
+  }
+  if(!user){
+    return <LoginScreen onLogin={loginGoogle} error={loginError}/>;
+  }
+
+  const syncBadge = {
+    online:{color:P.green, border:P.green+'33', label:'☁️ sincronizado'},
+    syncing:{color:P.amber, border:P.amber+'33', label:'☁️ salvando...'},
+    offline:{color:P.muted, border:P.border, label:'☁️ offline'},
+  }[syncState];
+
+  return (
+    <div className="min-h-screen" style={{background:'#0B0B12', color:P.text}}>
+      <header className="sticky top-0 z-30" style={{background:P.card, borderBottom:`1px solid ${P.border}`, boxShadow:'0 4px 32px rgba(0,0,0,.5)'}}>
+        <div className="max-w-[1100px] mx-auto px-4 flex items-center justify-between" style={{height:56}}>
+          <div className="flex items-center gap-3">
+            <span className="font-mono-num font-black text-[19px] tracking-[3px]" style={{color:P.amber}}>🚗 CPMA</span>
+            <span className="text-[10px] tracking-[3px] hidden sm:inline" style={{color:P.dim}}>CONTROLE DO MOTORISTA</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="hidden md:inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full whitespace-nowrap" style={{color:syncBadge.color, border:`1px solid ${syncBadge.border}`}}>{syncBadge.label}</span>
+            <button onClick={()=>{setNovoMes('');setModal('novoMes');}} className="rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer" style={{background:'transparent',border:`1px solid ${P.border}`,color:P.muted}}>🗓 Novo Mês</button>
+            <button onClick={()=>fileRef.current && fileRef.current.click()} className="rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer" style={{background:'transparent',border:`1px solid ${P.border}`,color:P.muted}}>⬆ Importar</button>
+            {user.photoURL && <img src={user.photoURL} onClick={logout} title="Clique para sair" className="w-7 h-7 rounded-full cursor-pointer" style={{border:`1px solid ${P.border}`}}/>}
+            <input ref={fileRef} type="file" accept=".json" style={{display:'none'}} onChange={importar}/>
+          </div>
+        </div>
+      </header>
+
+      <nav className="sticky z-20 overflow-x-auto" style={{top:56, background:P.card+'CC', borderBottom:`1px solid ${P.border}`}}>
+        <div className="max-w-[1100px] mx-auto px-4 flex">
+          {navItems.map(({id,label})=>(
+            <button key={id} onClick={()=>setPage(id)}
+              className="px-4.5 py-3.5 bg-transparent border-0 font-extrabold text-[13px] tracking-wide cursor-pointer whitespace-nowrap transition-all"
+              style={{borderBottom:`2px solid ${page===id?P.amber:'transparent'}`, color:page===id?P.amber:P.muted, padding:'13px 18px'}}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="max-w-[1100px] mx-auto px-4 py-6">
+        {page==='dashboard' && <Dashboard data={data}/>}
+        {page==='config' && <Config data={data} setData={setData} toast={toast}/>}
+        {page==='registro' && <Registro data={data} setData={setData} toast={toast}/>}
+        {page==='simulador' && <Simulador data={data}/>}
+        {page==='dados' && <Dados data={data} setData={setData} archive={archive} setArchive={setArchive} toast={toast} fileRef={fileRef} user={user} onLogout={logout}/>}
+      </main>
+
+      <Modal open={modal==='novoMes'} onClose={()=>setModal(null)} title="🗓 Iniciar Novo Mês">
+        <p className="text-[13px] leading-relaxed mb-5" style={{color:P.muted}}>
+          O mês <strong style={{color:P.text}}>{data.cfg.mes||'atual'}</strong> será <strong style={{color:P.amber}}>arquivado automaticamente</strong> antes de ser zerado. Configurações, custos e metas são mantidos.
+        </p>
+        <div className="mb-5">
+          <Inp label="Nome do Novo Mês" value={novoMes} placeholder="Ex: Junho 2025" onChange={e=>setNovoMes(e.target.value)}/>
+        </div>
+        <div className="flex gap-2.5 justify-end">
+          <Btn v="ghost" onClick={()=>setModal(null)}>Cancelar</Btn>
+          <Btn onClick={confirmarNovoMes}>✅ Confirmar</Btn>
+        </div>
+      </Modal>
+
+      <Toast msg={msg}/>
+    </div>
+  );
+}
+
+window.__CPMA_BOOTED__ = true;
+try {
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<App/>);
+} catch(e){
+  document.getElementById('root').innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">'
+    + '<div style="max-width:420px;background:#13131E;border:1px solid #E74C3C55;border-radius:16px;padding:28px;color:#EEEEF8;font-family:monospace;font-size:13px">'
+    + '<strong style="color:#E74C3C">Erro ao iniciar o app</strong><br><br>' + e.message
+    + '</div></div>';
+}
+</script>
+</body>
+</html>
