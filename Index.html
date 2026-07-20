@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>🚗 CPMA – Controle do Motorista</title>
+<meta name="theme-color" content="#F5A623">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CPMA">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" id="pwa-icon">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;background:#0B0B12;color:#EEEEF8;font-family:Inter,system-ui,sans-serif}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#0B0B12}
+::-webkit-scrollbar-thumb{background:#252538;border-radius:3px}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+input,button{font-family:inherit}
+.ns{scrollbar-width:none}.ns::-webkit-scrollbar{display:none}
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:12px}
+.form-grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.form-grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:14px}
+.form-grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px}
+.calc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}
+.chart-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:16px}
+.card{background:#13131E;border:1px solid #252538;border-radius:16px;padding:20px;margin-bottom:16px}
+.card-title{color:#F5A623;font-size:10px;font-weight:800;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px}
+.kpi{background:#13131E;border:1px solid #252538;border-left:3px solid #F5A623;border-radius:12px;padding:14px 16px}
+.kpi-label{color:#6B6B88;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:6px}
+.kpi-value{font-family:monospace;font-size:20px;font-weight:700;line-height:1}
+.kpi-sub{color:#32324A;font-size:11px;margin-top:5px}
+.inp-wrap{display:flex;flex-direction:column;gap:5px}
+.inp-label{color:#6B6B88;font-size:11px;letter-spacing:1px}
+.inp-hint{color:#32324A;font-size:11px}
+.inp{background:#1C1C2A;border:1px solid #252538;color:#EEEEF8;border-radius:8px;
+     padding:9px 12px;font-family:monospace;font-size:13px;outline:none;
+     width:100%;transition:border-color .15s}
+.inp:focus{border-color:#F5A623}
+.inp.blue{border-color:#3498DB44}
+.inp.blue:focus{border-color:#3498DB}
+.inp-tbl{background:#1C1C2A;border:1px solid #252538;color:#EEEEF8;border-radius:6px;
+         padding:7px 10px;font-family:monospace;font-size:14px;outline:none;
+         width:110px;text-align:right;transition:border-color .15s}
+.inp-tbl:focus{border-color:#F5A623}
+.btn{padding:9px 18px;border:none;border-radius:8px;font-weight:800;font-size:13px;
+     letter-spacing:.5px;cursor:pointer;transition:opacity .15s;display:inline-flex;
+     align-items:center;gap:6px}
+.btn:hover{opacity:.8}
+.btn-primary{background:#F5A623;color:#000}
+.btn-success{background:#2ECC71;color:#fff}
+.btn-danger{background:#E74C3C;color:#fff}
+.btn-ghost{background:transparent;color:#6B6B88;border:1px solid #252538}
+.btn-sm{padding:6px 12px;font-size:11px}
+.badge-ok{background:rgba(46,204,113,.15);color:#2ECC71;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-no{background:rgba(231,76,60,.15);color:#E74C3C;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-na{color:#32324A;font-size:12px}
+.divider{display:flex;align-items:center;gap:12px;margin:16px 0 12px}
+.divider span{color:#6B6B88;font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;white-space:nowrap}
+.divider hr{flex:1;border:none;border-top:1px solid #252538}
+.week-tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.week-tab{background:transparent;border:1px solid #252538;color:#6B6B88;
+          padding:8px 20px;border-radius:8px;font-size:13px;font-weight:800;
+          cursor:pointer;letter-spacing:.5px;transition:all .15s}
+.week-tab.active,.week-tab:hover{border-color:#F5A623;color:#F5A623;background:rgba(245,166,35,.1)}
+.tbl{width:100%;border-collapse:collapse;min-width:380px}
+.tbl th{color:#F5A623;font-size:10px;letter-spacing:2px;text-align:left;padding:11px 16px;
+        border-bottom:1px solid #252538;font-weight:800;text-transform:uppercase;white-space:nowrap}
+.tbl td{padding:9px 16px;border-bottom:1px solid #25253822;font-size:14px}
+.tbl tr:nth-child(even) td{background:#1C1C2A44}
+.tbl .sub-row td{background:rgba(245,166,35,.05);border-top:1px solid rgba(245,166,35,.2)}
+.row-action{background:#1C1C2A44;border:1px solid #252538;border-radius:12px;
+            padding:14px 18px;display:flex;align-items:center;justify-content:space-between;
+            gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.arch-row{background:#1C1C2A44;border:1px solid #252538;border-radius:12px;
+          padding:13px 18px;margin-bottom:10px;display:flex;align-items:center;
+          justify-content:space-between;gap:14px;flex-wrap:wrap}
+.modal-bg{display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.8);
+          align-items:center;justify-content:center;padding:24px}
+.modal-bg.open{display:flex}
+.modal-box{background:#13131E;border:1px solid #252538;border-radius:20px;padding:28px;
+           width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,.6)}
+.modal-title{color:#F5A623;font-weight:800;font-size:17px;margin-bottom:16px}
+.toast{display:none;position:fixed;bottom:24px;right:24px;z-index:100;
+       background:#1C1C2A;border:1px solid #2ECC71;color:#2ECC71;
+       padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;
+       box-shadow:0 8px 32px rgba(0,0,0,.6);pointer-events:none}
+.toast.show{display:block}
+.status-banner{border-radius:12px;padding:13px 20px;text-align:center;font-weight:700;
+               font-size:13px;letter-spacing:.3px;margin-bottom:20px}
+.sem-header{background:#13131E;border:1px solid #252538;border-left:3px solid #F5A623;
+            border-radius:12px;padding:12px 20px;margin-bottom:16px;
+            display:flex;justify-content:space-between;align-items:center}
+.cen-tbl th{color:#F5A623;font-size:10px;letter-spacing:2px;text-align:left;padding:11px 14px;
+            border-bottom:1px solid #252538;font-weight:800;text-transform:uppercase;white-space:nowrap}
+.cen-tbl td{padding:10px 14px;border-bottom:1px solid #25253822}
+.cen-tbl tr:nth-child(even) td{background:#1C1C2A44}
+
+/* Login */
+#login-screen{position:fixed;inset:0;background:#0B0B12;display:flex;
+  align-items:center;justify-content:center;z-index:200;flex-direction:column;padding:24px}
+#login-screen.hidden{display:none}
+.login-card{background:#13131E;border:1px solid #252538;border-radius:20px;
+  padding:40px 32px;max-width:380px;width:100%;text-align:center;
+  box-shadow:0 24px 80px rgba(0,0,0,.6)}
+.login-logo{font-family:monospace;font-weight:900;font-size:32px;color:#F5A623;
+  letter-spacing:4px;margin-bottom:8px}
+.login-sub{color:#6B6B88;font-size:13px;margin-bottom:32px;line-height:1.6}
+.google-btn{background:#fff;color:#1f1f1f;border:none;border-radius:10px;
+  padding:12px 24px;font-weight:700;font-size:14px;cursor:pointer;width:100%;
+  display:flex;align-items:center;justify-content:center;gap:10px;transition:opacity .15s}
+.google-btn:hover{opacity:.85}
+.login-error{color:#E74C3C;font-size:12px;margin-top:16px;display:none}
+#app-shell{display:none}
+#app-shell.visible{display:block}
+.sync-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+  color:#6B6B88;padding:4px 10px;border:1px solid #252538;border-radius:20px;white-space:nowrap}
+.sync-badge.online{color:#2ECC71;border-color:#2ECC7133}
+.sync-badge.syncing{color:#F5A623;border-color:#F5A62333}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🚗 CPMA</div>
+    <p class="login-sub">Controle financeiro do motorista de app.<br>Faça login para acessar seus dados de qualquer dispositivo.</p>
+    <button class="google-btn" onclick="loginGoogle()">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 5.1 29.6 3 24 3 16 3 9 7.6 6.3 14.7z"/><path fill="#4CAF50" d="M24 45c5.5 0 10.5-2.1 14.2-5.6l-6.6-5.4c-2 1.5-4.6 2.5-7.6 2.5-5.2 0-9.6-3.3-11.3-8l-6.5 5C9 40.4 16 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.4C41.5 35.5 45 30.2 45 24c0-1.4-.1-2.7-.4-3.5z"/></svg>
+      Entrar com Google
+    </button>
+    <p class="login-error" id="login-error">Erro ao fazer login. Tente novamente.</p>
+  </div>
+</div>
+
+<div id="app-shell">
+<header id="hdr" style="background:#13131E;border-bottom:1px solid #252538;position:sticky;top:0;z-index:30;box-shadow:0 4px 32px rgba(0,0,0,.5)">
+  <div style="max-width:1100px;margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between;height:56px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="color:#F5A623;font-weight:900;font-size:19px;letter-spacing:3px;font-family:monospace">🚗 CPMA</span>
+      <span style="color:#32324A;font-size:10px;letter-spacing:3px">CONTROLE DO MOTORISTA</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span id="sync-badge" class="sync-badge">☁️ offline</span>
+      <button class="btn btn-ghost btn-sm" onclick="openNM()">🗓 Novo Mês</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('fi').click()">⬆ Importar</button>
+      <button id="pwa-install-btn" class="btn btn-primary btn-sm" style="display:none" onclick="installApp()">⬇ Instalar App</button>
+      <img id="user-avatar" src="" style="display:none;width:28px;height:28px;border-radius:50%;border:1px solid #252538;cursor:pointer" onclick="logout()" title="Clique para sair">
+      <input id="fi" type="file" accept=".json" style="display:none" onchange="importar(event)">
+    </div>
+  </div>
+</header>
+
+<!-- Nav -->
+<nav class="ns" style="background:#13131E99;border-bottom:1px solid #252538;overflow-x:auto;position:sticky;top:56px;z-index:29">
+  <div style="max-width:1100px;margin:0 auto;padding:0 16px;display:flex">
+    <button class="nav-btn" data-page="dashboard" onclick="nav('dashboard')">📊 Dashboard</button>
+    <button class="nav-btn" data-page="config"    onclick="nav('config')">⚙️ Config</button>
+    <button class="nav-btn" data-page="registro"  onclick="nav('registro')">📅 Registro</button>
+    <button class="nav-btn" data-page="simulador" onclick="nav('simulador')">🔮 Simulador</button>
+    <button class="nav-btn" data-page="dados"     onclick="nav('dados')">💾 Dados</button>
+  </div>
+</nav>
+<style>
+.nav-btn{padding:13px 18px;background:transparent;border:none;border-bottom:2px solid transparent;
+         color:#6B6B88;font-weight:800;font-size:13px;letter-spacing:.5px;cursor:pointer;
+         transition:all .15s;white-space:nowrap}
+.nav-btn.active{color:#F5A623;border-bottom-color:#F5A623}
+.nav-btn:hover{color:#EEEEF8}
+</style>
+
+<!-- Main -->
+<main id="main" style="max-width:1100px;margin:0 auto;padding:24px 16px"></main>
+
+</div><!-- /app-shell -->
+
+<!-- Modal: Novo Mês -->
+<div class="modal-bg" id="modal-nm" onclick="if(event.target===this)closeModal('modal-nm')">
+  <div class="modal-box">
+    <div class="modal-title">🗓 Iniciar Novo Mês</div>
+    <p style="color:#6B6B88;font-size:13px;line-height:1.7;margin-bottom:20px">
+      O mês <strong id="nm-mes-atual" style="color:#EEEEF8"></strong> será
+      <strong style="color:#F5A623">arquivado automaticamente</strong> antes de ser zerado.
+      Configurações, custos e metas são mantidos.
+    </p>
+    <div class="inp-wrap" style="margin-bottom:20px">
+      <label class="inp-label">Nome do Novo Mês</label>
+      <input class="inp" id="nm-input" placeholder="Ex: Junho 2025">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('modal-nm')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarNM()">✅ Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Erro visível na tela ───────────────────────────────────
+window.onerror = function(msg, src, line, col, err) {
+  const m = document.getElementById('main');
+  if (m) m.innerHTML = '<div style="color:#E74C3C;padding:24px;font-family:monospace;font-size:13px;background:#1C1C2A;border-radius:12px;margin:24px">'
+    + '<strong>Erro:</strong> ' + msg + '<br><small>linha ' + line + '</small></div>';
+};
+
+// ── Storage seguro (funciona mesmo sem localStorage) ───────
+const store = (()=>{
+  let mem = {};
+  const safe = fn => { try { return fn(); } catch(e) { return null; } };
+  return {
+    get: k => safe(()=>localStorage.getItem(k)) || mem[k] || null,
+    set: (k,v) => { safe(()=>localStorage.setItem(k,v)); mem[k]=v; },
+    del: k => { safe(()=>localStorage.removeItem(k)); delete mem[k]; }
+  };
+})();
+
+// ── Palette ────────────────────────────────────────────────
+const P={
+  amber:'#F5A623',green:'#2ECC71',red:'#E74C3C',blue:'#3498DB',
+  purple:'#8B5CF6',teal:'#14B8A6',orange:'#F97316',
+  muted:'#6B6B88',dim:'#32324A',text:'#EEEEF8',
+  card:'#13131E',card2:'#1C1C2A',border:'#252538'
+};
+
+// ── Constants ──────────────────────────────────────────────
+const SK='cpma-v5',AK='cpma-arch-v5',WKKEY='cpma-wk-v5';
+const DIAS=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+const DKEYS=['seg','ter','qua','qui','sex','sab','dom'];
+
+// ── Helpers ────────────────────────────────────────────────
+const $=id=>document.getElementById(id);
+const brl=v=>(v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const toN=v=>parseFloat(v)||0;
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+
+// ── Default data ───────────────────────────────────────────
+const mkSem=n=>({num:n,dias:DIAS.map(d=>({dia:d,valor:0}))});
+const mkCfg=()=>({nome:'',cidade:'',plat:'',mes:'',
+  meta:4000,dias:22,comb:25,parcela:0,alim:20,
+  prev:0,cor:0,pneus:0,multas:0,outros:0,
+  metas:{seg:300,ter:300,qua:200,qui:400,sex:400,sab:300,dom:0}});
+const mkData=()=>({cfg:mkCfg(),sems:[1,2,3,4].map(mkSem)});
+
+// ── Migrate old formats ────────────────────────────────────
+function migrate(raw){
+  if(!raw) return mkData();
+  const d=Object.assign(mkData(),raw);
+  if(d.sems) d.sems=d.sems.map((s,si)=>({num:si+1,
+    dias:DIAS.map((dia,di)=>{
+      const o=s.dias?.[di];
+      if(!o) return {dia,valor:0};
+      const name=o.dia||o.d||dia;
+      if('manha'in o||'almoco'in o||'noite'in o)
+        return {dia:name,valor:(o.manha||0)+(o.almoco||0)+(o.noite||0)};
+      return {dia:name,valor:o.valor||0};
+    })}));
+  return d;
+}
+
+// ── Persistence ────────────────────────────────────────────
+let S=migrate(JSON.parse(store.get(SK)||'null'));
+let ARCH=JSON.parse(store.get(AK)||'[]');
+let WK=parseInt(store.get(WKKEY)||'0')||0;
+
+// ── Firebase ───────────────────────────────────────────────
+const firebaseConfig={
+  apiKey:"AIzaSyAbQ6vTsKTCrozAXoQU95RIt4tSY64hJCI",
+  authDomain:"cpma-4b26f.firebaseapp.com",
+  projectId:"cpma-4b26f",
+  storageBucket:"cpma-4b26f.firebasestorage.app",
+  messagingSenderId:"792687734113",
+  appId:"1:792687734113:web:c8d4fcd0d8c638d65ca920"
+};
+firebase.initializeApp(firebaseConfig);
+const auth=firebase.auth();
+const db=firebase.firestore();
+let CURRENT_USER=null;
+let syncTimer=null;
+
+function setSyncBadge(state){
+  const el=document.getElementById('sync-badge');
+  if(!el) return;
+  el.className='sync-badge '+(state==='online'?'online':state==='syncing'?'syncing':'');
+  el.textContent=state==='online'?'☁️ sincronizado':state==='syncing'?'☁️ salvando...':'☁️ offline';
+}
+
+function docRef(){ return db.collection('motoristas').doc(CURRENT_USER.uid); }
+
+// Push local state to Firestore (debounced)
+function cloudSave(){
+  if(!CURRENT_USER) return;
+  setSyncBadge('syncing');
+  clearTimeout(syncTimer);
+  syncTimer=setTimeout(()=>{
+    docRef().set({data:S, archive:ARCH, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true})
+      .then(()=>setSyncBadge('online'))
+      .catch(()=>setSyncBadge('offline'));
+  },800);
+}
+
+async function cloudLoad(){
+  try{
+    const snap=await docRef().get();
+    if(snap.exists){
+      const remote=snap.data();
+      if(remote.data){ S=migrate(remote.data); store.set(SK,JSON.stringify(S)); }
+      if(remote.archive){ ARCH=remote.archive; store.set(AK,JSON.stringify(ARCH)); }
+      setSyncBadge('online');
+    } else {
+      // Primeira vez deste usuário: envia o que já tem localmente
+      cloudSave();
+    }
+  }catch(e){ setSyncBadge('offline'); }
+}
+
+function loginGoogle(){
+  const provider=new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(provider).catch(err=>{
+    const el=document.getElementById('login-error');
+    if(el){ el.style.display='block'; el.textContent='Erro: '+(err.message||'tente novamente'); }
+  });
+}
+
+function logout(){
+  if(!confirm('Deseja sair da sua conta?')) return;
+  auth.signOut();
+}
+
+auth.onAuthStateChanged(user=>{
+  const loginScreen=document.getElementById('login-screen');
+  const shell=document.getElementById('app-shell');
+  if(user){
+    CURRENT_USER=user;
+    loginScreen.classList.add('hidden');
+    shell.classList.add('visible');
+    const avatar=document.getElementById('user-avatar');
+    if(avatar && user.photoURL){ avatar.src=user.photoURL; avatar.style.display='inline-block'; }
+    cloudLoad().then(()=>{ if(typeof nav==='function') nav(PAGE||'dashboard'); });
+  } else {
+    CURRENT_USER=null;
+    loginScreen.classList.remove('hidden');
+    shell.classList.remove('visible');
+  }
+});
+
+const save=()=>{store.set(SK,JSON.stringify(S));cloudSave();};
+const saveArch=()=>{store.set(AK,JSON.stringify(ARCH));cloudSave();};
+const saveWk=w=>{WK=w;store.set(WKKEY,String(w));};
+
+// ── Calculations ───────────────────────────────────────────
+function calc(){
+  const c=S.cfg;
+  const pC=(c.comb||0)/100,alimT=(c.alim||0)*(c.dias||22);
+  const despF=(c.parcela||0)+alimT+(c.prev||0)+(c.cor||0)+(c.pneus||0)+(c.multas||0)+(c.outros||0);
+  const fatN=pC<1?((c.meta||0)+despF)/(1-pC):0;
+  let fatR=0; S.sems.forEach(s=>s.dias.forEach(d=>{fatR+=d.valor||0}));
+  const combR=fatR*pC,despR=combR+despF,lucro=fatR-despR;
+  const manutT=(c.prev||0)+(c.cor||0)+(c.pneus||0)+(c.multas||0)+(c.outros||0);
+  return {pC,alimT,despF,fatN,fatR,combR,despR,lucro,manutT,
+    pMeta:c.meta?lucro/c.meta:0,falta:Math.max(0,(c.meta||0)-lucro),
+    metaDia:fatN/(c.dias||22)};
+}
+const semT=s=>s.dias.reduce((t,d)=>t+(d.valor||0),0);
+const diaMeta=(cfg,dia)=>{const i=DIAS.indexOf(dia);return i>=0?(cfg.metas?.[DKEYS[i]]||0):0};
+
+// ── Toast ──────────────────────────────────────────────────
+let toastT;
+function toast(msg){
+  const el=$('toast');el.textContent=msg;el.className='toast show';
+  clearTimeout(toastT);toastT=setTimeout(()=>el.className='toast',3000);
+}
+
+// ── Modal ──────────────────────────────────────────────────
+function openModal(id){$(id).classList.add('open')}
+function closeModal(id){$(id).classList.remove('open')}
+function openNM(){
+  $('nm-mes-atual').textContent=S.cfg.mes||'atual';
+  $('nm-input').value='';
+  openModal('modal-nm');
+}
+function confirmarNM(){
+  const nome=$('nm-input').value.trim();
+  if(!nome){alert('Informe o nome do novo mês.');return;}
+  const r=calc();
+  ARCH.unshift({mes:S.cfg.mes||'Mês sem nome',at:new Date().toISOString(),
+    cfg:JSON.parse(JSON.stringify(S.cfg)),
+    resumo:{fatR:r.fatR,lucro:r.lucro,meta:S.cfg.meta,pMeta:r.pMeta}});
+  saveArch();
+  S={cfg:Object.assign({},S.cfg,{mes:nome}),sems:[1,2,3,4].map(mkSem)};
+  save();closeModal('modal-nm');
+  toast('✅ Mês arquivado! Iniciando '+nome);
+  if(PAGE==='dashboard') renderDashboard();
+  else if(PAGE==='dados') renderDados();
+}
+
+// ── Navigation ─────────────────────────────────────────────
+let PAGE='dashboard';
+function nav(page){
+  PAGE=page;
+  document.querySelectorAll('.nav-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.page===page);
+  });
+  const fn={dashboard:renderDashboard,config:renderConfig,
+    registro:renderRegistro,simulador:renderSimulador,dados:renderDados};
+  fn[page]();
+}
+
+// ════════════════════════════════════════════════════════════
+// SVG CHARTS
+// ════════════════════════════════════════════════════════════
+function svgBar(items,color){
+  const max=Math.max(...items.map(i=>i.val),1);
+  const H=140,n=items.length,W=100/n;
+  const bars=items.map((item,i)=>{
+    const bh=Math.max(2,(item.val/max)*H);
+    const bx=i*W+W*.15, by=H-bh, bw=W*.7;
+    const lbl=item.val>0?`<text x="${i*W+W/2}%" y="${by-5}" text-anchor="middle" fill="${color}" font-size="9" font-family="monospace" font-weight="bold">R$${(item.val/1000).toFixed(1)}k</text>`:'';
+    return `<rect x="${bx}%" y="${by}" width="${bw}%" height="${bh}" fill="${color}" opacity=".8" rx="4"/>
+            <text x="${i*W+W/2}%" y="${H+16}" text-anchor="middle" fill="${P.muted}" font-size="12">${item.name}</text>${lbl}`;
+  }).join('');
+  return `<svg width="100%" height="${H+24}" style="overflow:visible;display:block">${bars}</svg>`;
+}
+
+function svgDonut(items){
+  const total=items.reduce((s,i)=>s+i.val,0);
+  if(!total) return `<p style="color:${P.dim};text-align:center;padding:40px 0;font-size:13px">Configure despesas para visualizar</p>`;
+  const cx=100,cy=75,R=55,r=28;
+  let a=-Math.PI/2;
+  const paths=items.map(item=>{
+    const da=(item.val/total)*Math.PI*2;
+    const x1=cx+R*Math.cos(a),y1=cy+R*Math.sin(a);
+    const x2=cx+R*Math.cos(a+da),y2=cy+R*Math.sin(a+da);
+    const x3=cx+r*Math.cos(a+da),y3=cy+r*Math.sin(a+da);
+    const x4=cx+r*Math.cos(a),y4=cy+r*Math.sin(a);
+    const lg=da>Math.PI?1:0;
+    const d=`M${x1},${y1} A${R},${R} 0 ${lg},1 ${x2},${y2} L${x3},${y3} A${r},${r} 0 ${lg},0 ${x4},${y4}Z`;
+    a+=da;
+    return `<path d="${d}" fill="${item.color}" opacity=".85"/>`;
+  }).join('');
+  const legend=items.map(i=>`<div style="font-size:11px;color:${i.color}">● ${i.name}: ${brl(i.val)}</div>`).join('');
+  return `<svg width="200" height="150" style="display:block;margin:0 auto;overflow:visible">${paths}</svg>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;margin-top:8px">${legend}</div>`;
+}
+
+function svgDaily(items){
+  const max=Math.max(...items.map(i=>Math.max(i.fat,i.meta)),1);
+  const H=120,TW=800,n=items.length;
+  const sp=TW/n,bw=sp*.55,bx0=sp*.225;
+  const bars=items.map((item,i)=>{
+    const bh=Math.max(0,(item.fat/max)*H);
+    const col=item.fat===0?P.dim:item.ok?P.green:P.red;
+    return `<rect x="${i*sp+bx0}" y="${H-bh}" width="${bw}" height="${bh}" fill="${col}" opacity=".75" rx="3"/>`;
+  }).join('');
+  const lpts=items.map((item,i)=>`${i*sp+sp/2},${H-(item.meta/max)*H}`).join(' ');
+  const line=`<polyline points="${lpts}" fill="none" stroke="${P.amber}" stroke-width="2" opacity=".65"/>`;
+  const labels=items.filter((_,i)=>i%7===3).map((_,i)=>{
+    const idx=i*7+3;
+    if(idx>=items.length) return '';
+    return `<text x="${idx*sp+sp/2}" y="${H+15}" text-anchor="middle" fill="${P.muted}" font-size="9">${items[idx].name}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${TW} ${H+18}" width="100%" height="150" style="display:block">${bars}${line}${labels}</svg>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// COMPONENT HELPERS
+// ════════════════════════════════════════════════════════════
+function kpi(label,value,sub,color){
+  color=color||P.amber;
+  return `<div class="kpi" style="border-left-color:${color}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value" style="color:${color}">${value}</div>
+    ${sub?`<div class="kpi-sub">${sub}</div>`:''}
+  </div>`;
+}
+
+function card(title,body,accent){
+  const bdr=accent?`border:1px solid ${accent}`:'';
+  return `<div class="card" ${bdr?'style="'+bdr+'"':''}>
+    ${title?`<div class="card-title">${title}</div>`:''}${body}</div>`;
+}
+
+function inp(label,id,value,hint,type,cls){
+  type=type||'text';cls=cls||'';
+  return `<div class="inp-wrap">
+    ${label?`<label class="inp-label" for="${id}">${label}</label>`:''}
+    <input class="inp${cls?' '+cls:''}" id="${id}" type="${type}" value="${esc(value)}" ${hint?'':''}
+           ${type==='number'?'placeholder="0"':''}>
+    ${hint?`<span class="inp-hint">${hint}</span>`:''}
+  </div>`;
+}
+
+function btn(label,onclick,cls){
+  return `<button class="btn ${cls||'btn-primary'}" onclick="${onclick}">${label}</button>`;
+}
+
+function divider(label){
+  return `<div class="divider"><span>${label}</span><hr></div>`;
+}
+
+function calcGrid(pairs){
+  const items=pairs.map(([l,v,col])=>`
+    <div style="background:${P.card2};border:1px solid ${P.border};border-radius:10px;padding:11px 14px">
+      <div style="color:${P.muted};font-size:10px;margin-bottom:5px;letter-spacing:1px">${l}</div>
+      <div style="color:${col};font-family:monospace;font-size:15px;font-weight:700">${v}</div>
+    </div>`).join('');
+  return `<div class="calc-grid">${items}</div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════════
+function renderDashboard(){
+  const r=calc(),c=S.cfg,pct=Math.round(r.pMeta*100);
+  const bst=pct>=100?{bg:'rgba(46,204,113,.07)',br:P.green,col:P.green}
+    :pct>=70?{bg:'rgba(245,166,35,.07)',br:P.amber,col:P.amber}
+    :{bg:'rgba(231,76,60,.07)',br:P.red,col:P.red};
+  const msg=pct>=100?`🎉 PARABÉNS${c.nome?' '+esc(c.nome):''}! META ATINGIDA — Lucro: ${brl(r.lucro)}`
+    :`⚡ ${esc(c.nome||'Motorista')} — ${pct}% da meta  |  Falta ${brl(r.falta)} para o objetivo`;
+
+  const semData=S.sems.map((s,i)=>({name:'S'+(i+1),val:semT(s)}));
+  const despPie=[
+    {name:'Combustível',val:r.combR,  color:P.orange},
+    {name:'Alimentação',val:r.alimT,  color:P.teal},
+    {name:'Parcela',    val:c.parcela||0,color:P.purple},
+    {name:'Manutenção', val:r.manutT, color:P.blue}
+  ].filter(d=>d.val>0);
+  const daily=[];
+  S.sems.forEach(s=>s.dias.forEach(d=>{
+    const meta=diaMeta(c,d.dia);
+    daily.push({name:d.dia,fat:d.valor||0,meta,ok:(d.valor||0)>=meta&&(d.valor||0)>0});
+  }));
+
+  $('main').innerHTML=`
+    <div class="status-banner" style="background:${bst.bg};border:1px solid ${bst.br};color:${bst.col}">${msg}</div>
+    <div class="kpi-grid">
+      ${kpi('Faturamento Bruto',brl(r.fatR),'meta: '+brl(r.fatN),P.amber)}
+      ${kpi('Lucro Líquido',brl(r.lucro),'meta: '+brl(c.meta||0),r.lucro>=(c.meta||0)?P.green:P.red)}
+      ${kpi('Despesas Totais',brl(r.despR),(r.fatR>0?Math.round(r.despR/r.fatR*100):0)+'% do fat.',P.red)}
+      ${kpi('% da Meta',pct+'%',pct>=100?'Objetivo atingido!':'Em andamento...',pct>=100?P.green:pct>=70?P.amber:P.red)}
+    </div>
+    <div class="kpi-grid">
+      ${kpi('⛽ Combustível',brl(r.combR),(c.comb||0)+'% do faturamento',P.orange)}
+      ${kpi('🍽 Alimentação',brl(r.alimT),'R$'+(c.alim||0)+'/dia × '+(c.dias||22)+'d',P.teal)}
+      ${kpi('🚗 Parcela',brl(c.parcela||0),'fixo mensal',P.purple)}
+      ${kpi('🔧 Manutenção',brl(r.manutT),'total mensal',P.blue)}
+    </div>
+    <div class="chart-row">
+      ${card('📈 Faturamento por Semana',svgBar(semData,P.amber))}
+      ${card('💸 Composição das Despesas',svgDonut(despPie))}
+    </div>
+    ${card('📅 Faturamento Diário vs Meta  (🟢 meta atingida  🔴 abaixo)',svgDaily(daily))}
+  `;
+}
+
+// ════════════════════════════════════════════════════════════
+// CONFIGURAÇÕES
+// ════════════════════════════════════════════════════════════
+function renderConfig(){
+  const c=S.cfg;
+  $('main').innerHTML=`
+    ${card('👤 Identificação',`<div class="form-grid-2">
+      ${inp('Nome do Motorista','c-nome',c.nome||'')}
+      ${inp('Cidade / Estado','c-cidade',c.cidade||'')}
+      ${inp('Plataforma','c-plat',c.plat||'')}
+      ${inp('Mês de Referência','c-mes',c.mes||'')}
+    </div>`)}
+    ${card('🎯 Meta de Ganho',`<div class="form-grid-2">
+      ${inp('Meta de Lucro Líquido (R$)','c-meta',c.meta||4000,'Quanto quer levar pra casa no mês','number','blue')}
+      ${inp('Dias Úteis no Mês','c-dias',c.dias||22,'Dias que vai trabalhar','number','blue')}
+    </div>`)}
+    ${card('💸 Despesas e Custos',`
+      ${divider('Despesas Fixas')}
+      <div class="form-grid-3">
+        ${inp('Combustível (% do faturamento)','c-comb',c.comb||25,'Ex: 25 = 25% do que faturar','number','blue')}
+        ${inp('Parcela do Carro (R$/mês)','c-parcela',c.parcela||0,'','number','blue')}
+        ${inp('Alimentação por Dia (R$)','c-alim',c.alim||20,'','number','blue')}
+      </div>
+      ${divider('Manutenção e Imprevistos')}
+      <div class="form-grid-3">
+        ${inp('Prev. / Revisão (R$/mês)','c-prev',c.prev||0,'','number','blue')}
+        ${inp('Corretiva (R$/mês)','c-cor',c.cor||0,'','number','blue')}
+        ${inp('Pneus / Óleo (R$/mês)','c-pneus',c.pneus||0,'','number','blue')}
+        ${inp('Multas / Taxas (R$/mês)','c-multas',c.multas||0,'','number','blue')}
+        ${inp('Outros (R$/mês)','c-outros',c.outros||0,'','number','blue')}
+      </div>`)}
+    ${card('📅 Meta por Dia da Semana (R$)',`<div class="form-grid-4">
+      ${['seg','ter','qua','qui','sex','sab','dom'].map((k,i)=>
+        inp(['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'][i],'c-m-'+k,(c.metas?.[k]??0),'','number','blue')).join('')}
+    </div>`)}
+    <div id="calc-preview"></div>
+    <button class="btn btn-primary" onclick="saveConfig()">💾 Salvar Configurações</button>
+  `;
+  renderCalcPreview();
+  // Live update calc preview
+  $('main').querySelectorAll('.blue').forEach(el=>{
+    el.addEventListener('input',renderCalcPreview);
+  });
+}
+
+function getCfgFromForm(){
+  const g=id=>toN($('c-'+id)?.value);
+  const metas={};
+  ['seg','ter','qua','qui','sex','sab','dom'].forEach(k=>{metas[k]=toN($('c-m-'+k)?.value)});
+  return {nome:$('c-nome')?.value||'',cidade:$('c-cidade')?.value||'',
+    plat:$('c-plat')?.value||'',mes:$('c-mes')?.value||'',
+    meta:g('meta'),dias:g('dias'),comb:g('comb'),parcela:g('parcela'),alim:g('alim'),
+    prev:g('prev'),cor:g('cor'),pneus:g('pneus'),multas:g('multas'),outros:g('outros'),metas};
+}
+
+function renderCalcPreview(){
+  const tmp=getCfgFromForm();
+  const pC=(tmp.comb||0)/100,alimT=(tmp.alim||0)*(tmp.dias||22);
+  const despF=(tmp.parcela||0)+alimT+(tmp.prev||0)+(tmp.cor||0)+(tmp.pneus||0)+(tmp.multas||0)+(tmp.outros||0);
+  const fatN=pC<1?((tmp.meta||0)+despF)/(1-pC):0;
+  const pr=$('calc-preview');
+  if(pr) pr.innerHTML=card('📊 Resumo Calculado',calcGrid([
+    ['Despesas Fixas',brl(despF),P.red],['Fat. Necessário',brl(fatN),P.amber],
+    ['Meta Diária',brl(fatN/Math.max(tmp.dias||22,1)),P.blue],
+    ['Alimentação Total',brl(alimT),P.teal],
+    ['% Desp./Fat.',fatN>0?Math.round(despF/fatN*100)+'%':'0%',P.orange],
+    ['Meta Semanal',brl(fatN/Math.max(tmp.dias||22,1)*6),P.purple]
+  ]),'#2ECC7144');
+}
+
+function saveConfig(){
+  S.cfg=Object.assign(S.cfg,getCfgFromForm());
+  save();toast('✅ Configurações salvas!');
+}
+
+// ════════════════════════════════════════════════════════════
+// REGISTRO
+// ════════════════════════════════════════════════════════════
+function renderRegistro(){
+  const sem=S.sems[WK],c=S.cfg,tot=semT(sem);
+  const tabs=[0,1,2,3].map(i=>`<button class="week-tab${i===WK?' active':''}" onclick="setWk(${i})">Semana ${i+1}</button>`).join('');
+  const rows=sem.dias.map((d,i)=>{
+    const meta=diaMeta(c,d.dia),ok=(d.valor||0)>=meta&&(d.valor||0)>0,zero=(d.valor||0)===0;
+    const badge=zero?'<span class="badge-na">—</span>':ok?'<span class="badge-ok">✅ Sim</span>':'<span class="badge-no">❌ Não</span>';
+    return `<tr>
+      <td style="font-weight:700;white-space:nowrap">${d.dia}</td>
+      <td><input class="inp-tbl" type="number" data-di="${i}" value="${d.valor||''}" placeholder="0" oninput="updateDia(${i},this.value)"></td>
+      <td style="font-family:monospace;color:${P.amber};font-weight:700" id="row-tot-${i}">${brl(d.valor||0)}</td>
+      <td style="font-family:monospace;color:${P.muted};font-size:13px;white-space:nowrap">${brl(meta)}</td>
+      <td id="row-badge-${i}">${badge}</td>
+    </tr>`;
+  }).join('');
+
+  $('main').innerHTML=`
+    <div class="week-tabs">${tabs}</div>
+    <div class="sem-header">
+      <span style="color:${P.muted};font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase">Semana ${WK+1}</span>
+      <span style="color:${P.amber};font-family:monospace;font-size:20px;font-weight:700" id="sem-tot">${brl(tot)}</span>
+    </div>
+    ${card('',`<div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr>
+          <th>Dia</th><th>Faturamento do Dia (R$)</th>
+          <th>Total</th><th>Meta</th><th>Status</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="sub-row">
+          <td style="color:${P.amber};font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Subtotal Semana ${WK+1}</td>
+          <td></td>
+          <td style="font-family:monospace;color:${P.amber};font-weight:800;font-size:14px" id="sub-tot">${brl(tot)}</td>
+          <td colspan="2"></td>
+        </tr></tfoot>
+      </table>
+    </div>`)}
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${btn('💾 Salvar','salvarSemana()')}
+      ${btn('🗑 Limpar Semana','clearWk()','btn btn-ghost')}
+    </div>
+  `;
+}
+
+function setWk(i){saveWk(i);renderRegistro();}
+
+function updateDia(di,val){
+  S.sems[WK].dias[di].valor=toN(val);
+  save();
+  const d=S.sems[WK].dias[di];
+  const tot=d.valor||0;
+  const meta=diaMeta(S.cfg,d.dia);
+  const ok=tot>=meta&&tot>0,zero=tot===0;
+  const rowTot=$('row-tot-'+di);
+  const badge=$('row-badge-'+di);
+  if(rowTot) rowTot.textContent=brl(tot);
+  if(badge) badge.innerHTML=zero?'<span class="badge-na">—</span>':ok?'<span class="badge-ok">✅ Sim</span>':'<span class="badge-no">❌ Não</span>';
+  const wkTot=semT(S.sems[WK]);
+  const semEl=$('sem-tot'),subEl=$('sub-tot');
+  if(semEl) semEl.textContent=brl(wkTot);
+  if(subEl) subEl.textContent=brl(wkTot);
+}
+
+function salvarSemana(){toast('✅ Semana '+(WK+1)+' salva!');}
+function clearWk(){
+  if(!confirm('Limpar todos os dados da Semana '+(WK+1)+'?')) return;
+  S.sems[WK]=mkSem(WK+1);save();renderRegistro();
+  toast('🗑 Semana '+(WK+1)+' limpa');
+}
+
+// ════════════════════════════════════════════════════════════
+// SIMULADOR
+// ════════════════════════════════════════════════════════════
+function renderSimulador(){
+  const r=calc(),c=S.cfg;
+  const cens=[
+    ['🔴 Pessimista',.6],['🟡 Abaixo da Meta',.8],['🟢 Meta Exata',1],
+    ['🔵 Acima da Meta',1.2],['⭐ Ótimo',1.5]
+  ];
+  const rows=cens.map(([label,pct],i)=>{
+    const fat=r.fatN*pct,desp=fat*r.pC+r.despF,lucro=fat-desp,ok=lucro>=(c.meta||0);
+    const stripe=i%2===0?'':'background:#1C1C2A44';
+    return `<tr style="${stripe}">
+      <td style="font-weight:700">${label}</td>
+      <td style="font-family:monospace;color:${P.amber};font-weight:600">${brl(fat)}</td>
+      <td style="font-family:monospace;color:${P.red}">${brl(desp)}</td>
+      <td style="font-family:monospace;color:${lucro>=0?P.green:P.red};font-weight:700">${brl(lucro)}</td>
+      <td>${ok?'<span class="badge-ok">✅ Sim</span>':'<span class="badge-no">❌ Não</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  $('main').innerHTML=`
+    ${card('📌 Parâmetros Ativos',`<div class="kpi-grid">
+      ${kpi('Combustível',(c.comb||0)+'%','',P.orange)}
+      ${kpi('Despesas Fixas',brl(r.despF),'',P.red)}
+      ${kpi('Meta de Lucro',brl(c.meta||0),'',P.green)}
+      ${kpi('Fat. Necessário',brl(r.fatN),'',P.amber)}
+    </div>`)}
+    ${card('📊 Cenários Automáticos',`<div style="overflow-x:auto"><table class="tbl cen-tbl" style="min-width:500px">
+      <thead><tr><th>Cenário</th><th>Faturamento</th><th>Despesas</th><th>Lucro Líquido</th><th>Meta?</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`)}
+    ${card('✏️ Simulação Livre',`
+      <p style="color:${P.muted};font-size:13px;margin-bottom:16px">Digite qualquer faturamento e veja o resultado instantaneamente.</p>
+      <div style="max-width:260px;margin-bottom:20px">
+        <div class="inp-wrap">
+          <label class="inp-label">Faturamento Bruto (R$)</label>
+          <input class="inp blue" id="sim-livre" type="number" placeholder="Ex: 3.500" oninput="updateSimLivre()">
+        </div>
+      </div>
+      <div id="sim-livre-result"></div>`)}
+    ${card('📋 Resultado Real do Mês',`<div class="kpi-grid">
+      ${kpi('Faturamento Real',brl(r.fatR),'',P.amber)}
+      ${kpi('Despesas Reais',brl(r.despR),'',P.red)}
+      ${kpi('Lucro Real',brl(r.lucro),'',r.lucro>=(c.meta||0)?P.green:P.red)}
+      ${kpi('% da Meta',Math.round(r.pMeta*100)+'%','',r.pMeta>=1?P.green:r.pMeta>=.7?P.amber:P.red)}
+    </div>`)}
+  `;
+}
+
+function updateSimLivre(){
+  const r=calc(),c=S.cfg;
+  const fat=toN($('sim-livre')?.value);
+  const el=$('sim-livre-result');
+  if(!el) return;
+  if(!fat){el.innerHTML=`<p style="color:${P.dim};font-size:13px">Preencha o campo acima para simular.</p>`;return;}
+  const desp=fat*r.pC+r.despF,lucro=fat-desp,ok=lucro>=(c.meta||0);
+  el.innerHTML=`<div class="kpi-grid">
+    ${kpi('Faturamento',brl(fat),'',P.amber)}
+    ${kpi('Despesas',brl(desp),'',P.red)}
+    ${kpi('Lucro Líquido',brl(lucro),'',lucro>=0?P.green:P.red)}
+    ${kpi('Meta Atingida',ok?'✅ Sim':'❌ Não','',ok?P.green:P.red)}
+  </div>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// DADOS
+// ════════════════════════════════════════════════════════════
+function renderDados(){
+  const r=calc();
+  const userInfo=CURRENT_USER?`
+    <div class="row-action">
+      <div style="display:flex;align-items:center;gap:12px">
+        ${CURRENT_USER.photoURL?`<img src="${CURRENT_USER.photoURL}" style="width:40px;height:40px;border-radius:50%">`:''}
+        <div>
+          <div style="color:${P.text};font-weight:700;font-size:14px">${esc(CURRENT_USER.displayName||'Motorista')}</div>
+          <div style="color:${P.muted};font-size:12px;margin-top:2px">${esc(CURRENT_USER.email||'')}</div>
+        </div>
+      </div>
+      ${btn('🚪 Sair da Conta','logout()','btn btn-ghost')}
+    </div>` : '';
+  const archRows=ARCH.length===0
+    ?`<p style="color:${P.dim};font-size:13px">Nenhum mês arquivado ainda. Use "🗓 Novo Mês" no cabeçalho para arquivar e reiniciar.</p>`
+    :ARCH.map((arq,i)=>{
+      const pt=Math.round((arq.resumo?.pMeta||0)*100);
+      const ok=(arq.resumo?.lucro||0)>=(arq.resumo?.meta||0);
+      return `<div class="arch-row">
+        <div>
+          <div style="color:${P.text};font-weight:700;font-size:14px">${esc(arq.mes)}</div>
+          <div style="color:${P.muted};font-size:11px;margin-top:3px">${esc(arq.cfg?.nome||'Motorista')} · ${new Date(arq.at).toLocaleDateString('pt-BR')}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="color:${P.amber};font-family:monospace;font-weight:700;font-size:14px">${brl(arq.resumo?.fatR||0)}</div>
+          <div style="color:${ok?P.green:P.red};font-size:11px;margin-top:3px">Lucro: ${brl(arq.resumo?.lucro||0)} (${pt}%)</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          ${btn('⬇','expArq('+i+')','btn btn-ghost btn-sm')}
+          ${btn('✕','delArq('+i+')','btn btn-danger btn-sm')}
+        </div>
+      </div>`;
+    }).join('');
+
+
+  $('main').innerHTML=`
+    ${card('👤 Sua Conta', userInfo)}
+    ${card('📊 Resumo do Mês Atual',`<div class="calc-grid">
+      ${[['Motorista',esc(S.cfg.nome||'—'),P.text],['Mês Atual',esc(S.cfg.mes||'—'),P.text],
+         ['Faturamento',brl(r.fatR),P.amber],['Lucro Líquido',brl(r.lucro),r.lucro>=(S.cfg.meta||0)?P.green:P.red],
+         ['% da Meta',Math.round(r.pMeta*100)+'%',P.blue],
+         ['Semanas c/ dados',S.sems.filter(s=>semT(s)>0).length+'/4',P.teal]
+      ].map(([l,v,col])=>`<div style="background:${P.card2};border:1px solid ${P.border};border-radius:10px;padding:11px 14px">
+        <div style="color:${P.muted};font-size:10px;margin-bottom:5px;letter-spacing:1px">${l}</div>
+        <div style="color:${col};font-family:monospace;font-size:14px;font-weight:700">${v}</div>
+      </div>`).join('')}
+    </div>`)}
+    ${card('💾 Gerenciar Dados',`
+      <div class="row-action">
+        <div><div style="color:${P.text};font-weight:700;font-size:14px">Exportar Backup</div>
+             <div style="color:${P.muted};font-size:12px;margin-top:3px">Salva todos os dados em um arquivo .json</div></div>
+        ${btn('⬇ Exportar JSON','exportar()','btn btn-success')}
+      </div>
+      <div class="row-action">
+        <div><div style="color:${P.text};font-weight:700;font-size:14px">Importar Backup</div>
+             <div style="color:${P.muted};font-size:12px;margin-top:3px">Restaura dados de um .json exportado anteriormente</div></div>
+        ${btn('⬆ Importar JSON',"document.getElementById('fi').click()",'btn btn-primary')}
+      </div>
+      <div class="row-action" style="border:1px solid ${P.red}44">
+        <div><div style="color:${P.red};font-weight:700;font-size:14px">Limpar Todos os Dados</div>
+             <div style="color:${P.muted};font-size:12px;margin-top:3px">Remove tudo permanentemente. Ação irreversível.</div></div>
+        ${btn('🗑 Limpar Tudo','limparTudo()','btn btn-danger')}
+      </div>`)}
+    ${card('📱 Instalar como App na Tela Inicial', `
+      <div style="background:#1C1C2A;border:1px solid #F5A62344;border-radius:12px;padding:16px;margin-bottom:12px">
+        <p style="color:#F5A623;font-weight:800;font-size:13px;margin-bottom:8px">⭐ Método recomendado — Netlify (grátis, sem cadastro)</p>
+        <p style="color:#6B6B88;font-size:12px;line-height:1.8">
+          1. Acesse <strong style="color:#EEEEF8">app.netlify.com/drop</strong> no seu computador<br>
+          2. Renomeie o arquivo para <code style="color:#F5A623">index.html</code><br>
+          3. Arraste e solte o arquivo na página<br>
+          4. Copie o link gerado (ex: <code style="color:#2ECC71">cpma-xyz.netlify.app</code>)<br>
+          5. Abra o link no celular e instale como app abaixo
+        </p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+        <div style="background:#1C1C2A;border:1px solid #252538;border-radius:12px;padding:16px">
+          <p style="color:#EEEEF8;font-weight:700;font-size:13px;margin-bottom:8px">🤖 Android (Chrome)</p>
+          <p style="color:#6B6B88;font-size:12px;line-height:1.8">
+            Abra o link no Chrome<br>
+            Menu <strong style="color:#EEEEF8">⋮</strong> → <strong style="color:#F5A623">Adicionar à tela inicial</strong><br>
+            — ou clique em <strong style="color:#F5A623">"⬇ Instalar App"</strong> no cabeçalho
+          </p>
+        </div>
+        <div style="background:#1C1C2A;border:1px solid #252538;border-radius:12px;padding:16px">
+          <p style="color:#EEEEF8;font-weight:700;font-size:13px;margin-bottom:8px">🍎 iPhone / iPad (Safari)</p>
+          <p style="color:#6B6B88;font-size:12px;line-height:1.8">
+            Abra o link no Safari<br>
+            Botão <strong style="color:#F5A623">Compartilhar 📤</strong> (barra inferior)<br>
+            → <strong style="color:#F5A623">Adicionar à Tela de Início</strong>
+          </p>
+        </div>
+      </div>
+    `)}
+    ${card('🗓 Histórico de Meses Arquivados',archRows)}
+  `;
+}
+
+function exportar(){
+  const nome=(S.cfg.nome||'motorista').replace(/\s/g,'_');
+  const mes=(S.cfg.mes||'mes').replace(/\s/g,'_');
+  const blob=new Blob([JSON.stringify({data:S,archive:ARCH},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='cpma_'+nome+'_'+mes+'.json';a.click();
+  URL.revokeObjectURL(url);toast('⬇ Dados exportados!');
+}
+
+function importar(e){
+  const file=e.target.files?.[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const p=JSON.parse(ev.target.result);
+      if(p.data?.cfg&&p.data?.sems){S=migrate(p.data);if(p.archive)ARCH=p.archive;save();saveArch();toast('⬆ Dados importados!');}
+      else alert('Arquivo inválido. Use um backup exportado pelo CPMA.');
+    }catch{alert('Erro ao ler o arquivo JSON.');}
+  };
+  reader.readAsText(file);e.target.value='';
+  if(PAGE==='dados') renderDados();
+  else if(PAGE==='dashboard') renderDashboard();
+}
+
+function limparTudo(){
+  if(!confirm('Apagar TODOS os dados permanentemente?')) return;
+  S=mkData();ARCH=[];save();saveArch();
+  [SK,AK,WKKEY].forEach(k=>store.del(k));
+  toast('🗑 Dados apagados');renderDados();
+}
+
+function expArq(i){
+  const arq=ARCH[i];
+  const blob=new Blob([JSON.stringify(arq,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='cpma_arq_'+arq.mes.replace(/\s/g,'_')+'.json';a.click();
+  URL.revokeObjectURL(url);toast('⬇ Mês exportado!');
+}
+
+function delArq(i){
+  if(!confirm('Remover este mês do histórico?')) return;
+  ARCH.splice(i,1);saveArch();renderDados();toast('🗑 Mês removido');
+}
+
+// ── PWA ────────────────────────────────────────────────────
+(function initPWA() {
+  const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="96" fill="#0B0B12"/>
+    <rect width="512" height="512" rx="96" fill="#F5A62322"/>
+    <text x="256" y="310" text-anchor="middle" font-size="260" font-family="Arial">🚗</text>
+    <rect x="40" y="360" width="432" height="80" rx="12" fill="#F5A623" opacity=".15"/>
+    <text x="256" y="415" text-anchor="middle" font-size="44" font-family="monospace"
+          font-weight="900" fill="#F5A623" letter-spacing="6">CPMA</text>
+  </svg>`;
+  const iconUrl = 'data:image/svg+xml,' + encodeURIComponent(icon);
+  const el = document.getElementById('pwa-icon');
+  if (el) el.href = iconUrl;
+
+  const manifest = {
+    name: 'CPMA – Controle do Motorista',
+    short_name: 'CPMA',
+    description: 'Controle financeiro para motoristas de aplicativo',
+    start_url: './',
+    display: 'standalone',
+    orientation: 'portrait',
+    background_color: '#0B0B12',
+    theme_color: '#F5A623',
+    icons: [
+      { src: iconUrl, sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
+      { src: iconUrl, sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' }
+    ]
+  };
+  const mBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+  const mLink = document.createElement('link');
+  mLink.rel = 'manifest'; mLink.href = URL.createObjectURL(mBlob);
+  document.head.appendChild(mLink);
+
+  // Service Worker (só funciona em HTTPS)
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    const swCode = `
+const CACHE = 'cpma-v1';
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(['./', './index.html'])));
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));
+  self.clients.claim();
+});
+self.addEventListener('fetch', e => {
+  e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).catch(() => caches.match('./'))));
+});`;
+    const swBlob = new Blob([swCode], { type: 'application/javascript' });
+    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+  }
+
+  // Botão de instalar (Android Chrome)
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); deferredPrompt = e;
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'inline-flex';
+  });
+  window.addEventListener('appinstalled', () => {
+    const btn = document.getElementById('pwa-install-btn');
+    if (btn) btn.style.display = 'none';
+    toast('🎉 App instalado com sucesso!');
+  });
+  window.installApp = function() {
+    if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; }
+  };
+})();
+
+// ── Init ───────────────────────────────────────────────────
+try {
+  nav('dashboard');
+} catch(e) {
+  const m = document.getElementById('main');
+  if (m) m.innerHTML = '<div style="color:#E74C3C;padding:24px;font-family:monospace;font-size:13px;background:#1C1C2A;border-radius:12px">'
+    + '<strong>Erro ao iniciar:</strong><br>' + e.message
+    + '<br><br><small>Abra o Console do navegador (F12) para mais detalhes.</small></div>';
+}
+</script>
+</body>
+</html>
